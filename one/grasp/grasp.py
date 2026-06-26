@@ -39,23 +39,18 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+import one.utils.math as oum
 import one.robots.base.tcp as orbt
-
-
-def _tf(a):
-    return np.asarray(a, dtype=np.float32).reshape(4, 4)
-
-
-def _vec(a):
-    return np.asarray(a, dtype=np.float32).reshape(-1)
 
 
 @dataclass
 class Grasp:
     """A frozen, gripper-agnostic grasp record (see module docstring)."""
 
+    # TODO pose, pre_pose are tcp frames, but their names are misleading. people may think they are hand frames.
     pose: np.ndarray                 # (4,4) tcp frame in object-local coords
     pre_pose: np.ndarray             # (4,4) pre-grasp tcp frame, object-local
+    # TODO tcp is a loc_tf, but its name is misleading. people may think it is a frame.
     tcp: np.ndarray                  # (4,4) tcp loc_tf relative to hand root link
     qpos: np.ndarray                 # (k,) hand joint config at the grasp
     pre_qpos: np.ndarray             # (k,) hand joint config at the pre-grasp
@@ -63,11 +58,11 @@ class Grasp:
     provenance: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        self.pose = _tf(self.pose)
-        self.pre_pose = _tf(self.pre_pose)
-        self.tcp = _tf(self.tcp)
-        self.qpos = _vec(self.qpos)
-        self.pre_qpos = _vec(self.pre_qpos)
+        self.pose = oum.ensure_tf(self.pose)
+        self.pre_pose = oum.ensure_tf(self.pre_pose)
+        self.tcp = oum.ensure_tf(self.tcp)
+        self.qpos = oum.ensure_vec(self.qpos)
+        self.pre_qpos = oum.ensure_vec(self.pre_qpos)
         self.score = float(self.score)
 
     # ---- reconstruction helpers (no gripper state re-derivation) -----------
@@ -81,13 +76,13 @@ class Grasp:
     def base_pose(self, obj_wd_tf):
         """The hand ROOT-link world pose that realizes this grasp on an object
         at ``obj_wd_tf``: ``(obj @ pose) @ inv(tcp)``."""
-        world = _tf(obj_wd_tf) @ self.pose
+        world = oum.ensure_tf(obj_wd_tf) @ self.pose
         return world @ np.linalg.inv(self.tcp.astype(np.float64))
 
     def transformed(self, tf):
         """A copy with ``pose`` / ``pre_pose`` mapped by world transform ``tf``
         (object-local -> world). ``tcp`` / ``qpos`` are hand-relative, untouched."""
-        tf = _tf(tf)
+        tf = oum.ensure_tf(tf)
         return Grasp(tf @ self.pose, tf @ self.pre_pose, self.tcp.copy(),
                      self.qpos.copy(), self.pre_qpos.copy(), self.score,
                      dict(self.provenance))

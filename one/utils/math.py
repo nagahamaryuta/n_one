@@ -1512,6 +1512,13 @@ def ensure_pos(pos=None):
     return pos
 
 
+def ensure_vec(vec, length=None):
+    vec = np.asarray(vec, dtype=np.float32).reshape(-1)
+    if length is not None:
+        assert vec.shape == (length,)
+    return vec
+
+
 def ensure_tf(tf=None):
     if tf is None:
         return np.eye(4, dtype=np.float32)

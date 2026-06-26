@@ -2,7 +2,7 @@
 
 Ontology (see also the discussion that produced this):
   * **arm == manipulator** -- the SAME object, two aspects: "arm" = reach
-    (a kinematic chain + ik), "manipulator" = capability (approach / pick_place /
+    (a kinematic chain + ik), "manipulator" = capability (approach / pick_and_place /
     regrasp). A single-arm robot IS its own arm; a multi-arm robot's
     ``left_arm`` / ``right_arm`` each IS an arm.
   * **end_effector** -- a SEPARATE, swappable device the arm carries (mounted at
@@ -10,7 +10,7 @@ Ontology (see also the discussion that produced this):
 
 So manipulation = arm (reach) + end_effector (grasp) + behavior. This module
 provides the behavior as ``SingleArmManipulation`` (a mixin) that delegates to
-the free-function cores (``gen_approach`` / ``gen_depart`` / ``gen_pick_place`` /
+the free-function cores (``gen_approach`` / ``gen_depart`` / ``gen_pick_and_place`` /
 ``reason_common_gids`` / -- later -- ``regrasp``). The scene is a collision world
 built once via ``collider = arm.build_collider(fixtures=..., objects=...)`` and
 PASSED explicitly to each planning call (``collider=``) -- it is a value, not
@@ -20,11 +20,11 @@ there is no per-call rebuild; only a grasp / release ``refresh``es it.
 
 Two hosts mix it:
   * a SINGLE-ARM robot mixes it directly -- ``class RS007L(MechBase,
-    SingleArmManipulation)`` -- so ``robot.pick_place(...)`` reads naturally and
+    SingleArmManipulation)`` -- so ``robot.pick_and_place(...)`` reads naturally and
     no external view wraps the robot. ``body`` is the robot itself.
   * a MULTI-ARM robot OWNS per-arm members built from :class:`Arm`, e.g.
     ``self.left_arm = Arm(self, 'left_arm_waist')`` -- so
-    ``humanoid.left_arm.pick_place(...)``. ``body`` is the parent robot.
+    ``humanoid.left_arm.pick_and_place(...)``. ``body`` is the parent robot.
 
 The host provides ``arm_chain`` (the planning chain); ``end_effector`` is DERIVED
 from the mech mounted at the chain tip (named once -- when mounted -- and swap by
@@ -37,9 +37,19 @@ import one.collider.mj_collider as ocm
 import one.motion.core.planning_context as omppc
 import one.motion.probabilistic.rrt as ompr
 from one.motion.primitives.approach_depart import (
-    gen_approach, gen_depart, gen_moveto)
+    gen_approach, gen_depart, gen_moveto, nearest_valid_ik)
 from one.grasp.reasoner import reason_common_gids
-from one.manipulation.pick_place import gen_pick_place, iter_pick_place
+from one.manipulation.pick_place import gen_pick_and_place, iter_pick_and_place
+
+
+def _changes_collision(obj):
+    """Whether mounting/unmounting ``obj`` can change the collision model -- i.e. it
+    carries collision geometry. A SceneObject built with ``collision_type=None`` has
+    an empty ``collisions`` list and cannot (so the collider need not recompile);
+    anything without a ``collisions`` attribute (e.g. a mounted mech tool with its
+    own link geoms) conservatively does."""
+    cols = getattr(obj, 'collisions', None)
+    return cols is None or bool(cols)
 
 
 class SingleArmManipulation:
@@ -59,6 +69,12 @@ class SingleArmManipulation:
 
     arm_chain = 'main'
     _ee_override = None
+    # Edge collision-check resolution for this arm's planning (rad of joint motion
+    # between successive collision checks along an RRT edge). The library default
+    # is the safe, fine pi/180 (1 deg); raise it -- e.g. ``arm.cd_step_size =
+    # np.pi/90`` (2 deg) -- to roughly HALVE collision checks (and RRT time) when
+    # the obstacles are not paper-thin. Read by ``_context`` into the PlanningContext.
+    cd_step_size = np.pi / 180
 
     @property
     def body(self):
@@ -104,32 +120,35 @@ class SingleArmManipulation:
         return c
 
     # ---- recipe composition --------------------------------------------------
-    def plan(self, collider, *, constraints=(), tcp=None, start_qs=None):
-        """Open a manipulation :class:`~one.manipulation.session.Session` bound to
-        this arm + ``collider`` + ``constraints``. List steps (``moveto`` /
-        ``linear`` / ``grasp`` / ``release``) then read ``.result`` (a MotionData
-        or None). The thin, recommended way to write a multi-step recipe; for a
-        multi-arm cell use ``Workcell.plan`` (it activates the arm first)."""
-        from one.manipulation.session import Session
-        return Session(self, collider, constraints=constraints, tcp=tcp,
-                       start_qs=start_qs)
+    def recipe(self, collider, *, constraints=(), tcp=None, start_qs=None):
+        """Open a manipulation :class:`~one.manipulation.recipe.Recipe` (an ordered
+        sequence of steps) bound to this arm + ``collider`` + ``constraints``. List
+        steps (``moveto`` / ``linear`` / ``grasp`` / ``release``, each motion step
+        returning its MotionData or None) then read ``.result``. The thin,
+        recommended way to write a multi-step recipe; for a multi-arm cell use
+        ``Workcell.recipe`` (it activates the arm first)."""
+        from one.manipulation.recipe import Recipe
+        return Recipe(self, collider, constraints=constraints, tcp=tcp,
+                      start_qs=start_qs)
 
     def _context(self, collider, constraints=()):
         """(ctx, planner) over ``collider``, restricted to this arm's chain, with
         optional extra ``constraints`` (a tuple of
         :class:`~one.motion.core.constraint.Constraint` -- e.g. a cable/tether
-        limit). Cached keyed by the collider IDENTITY and the constraint set, so
-        repeated calls with the same world + constraints reuse one context."""
+        limit). Cached keyed by the collider IDENTITY, the constraint set, and this
+        arm's ``cd_step_size``, so repeated calls with the same world reuse one context."""
         constraints = tuple(constraints)
         cache = getattr(self, '_ctx_cache', None)
         if (cache is None or cache[0] is not collider
-                or cache[3] != constraints):
+                or cache[3] != constraints or cache[4] != self.cd_step_size):
             ctx = omppc.PlanningContext(
                 collider=collider,
                 joint_limits=self.body.chain_joint_limits(self.arm_chain),
-                constraints=constraints)
+                constraints=constraints,
+                cd_step_size=self.cd_step_size)
             planner = ompr.RRTConnectPlanner(pln_ctx=ctx, goal_bias=0.3)
-            self._ctx_cache = (collider, ctx, planner, constraints)
+            self._ctx_cache = (collider, ctx, planner, constraints,
+                               self.cd_step_size)
         return self._ctx_cache[1], self._ctx_cache[2]
 
     # ---- grasp reasoning -----------------------------------------------------
@@ -144,15 +163,38 @@ class SingleArmManipulation:
                                   gripper=self.end_effector, chain=self.arm_chain,
                                   which=which, **kw)
 
+    # ---- reachability (a cheap gate before motion planning) ------------------
+    def reachable(self, goal, *, collider, tcp, constraints=(), ref_qs=None):
+        """The nearest collision-free (and ``constraints``-satisfying) IK config
+        for ``goal`` (a ``(pos, rotmat)`` pair or 4x4 tcp pose) in ``collider``,
+        or None if unreachable. A CHEAP feasibility gate to run before the
+        expensive ``moveto`` -- e.g. confirm every key pose of a multi-arm recipe
+        has an IK before planning any leg. ``ref_qs`` biases the branch chosen."""
+        ctx, _ = self._context(collider, constraints)
+        ctx.clear_cache()
+        if isinstance(tcp, str):
+            tcp = self.body.tcp(tcp)
+        if ref_qs is None:
+            ref_qs = np.asarray(self.body.qs, dtype=np.float32)
+        g = np.asarray(goal, dtype=np.float32)
+        if g.shape == (4, 4):
+            pos, rotmat = g[:3, 3], g[:3, :3]
+        else:
+            pos, rotmat = goal
+        return nearest_valid_ik(self.body, ctx, pos, rotmat, chain=self.arm_chain,
+                                tcp=tcp, ref_qs=ref_qs)
+
     # ---- primitive motions ---------------------------------------------------
     def moveto(self, goal, *, collider, tcp=None, constraints=(), start_qs=None,
-               ee_qpos=None, max_iters=4000):
+               ee_qpos=None, max_iters=2000, time_limit=3.0, shortcut=True):
         """Free RRT move to ``goal`` -- a full joint config, or a tcp pose
         (``(pos, rotmat)`` / 4x4) IK'd via ``tcp`` -- in ``collider``, gated by
         ``constraints``. From ``start_qs`` (default: current). Returns a
-        MotionData (held at ``ee_qpos``) or None. The free-space primitive that
-        ``moveto``-style legs and the :class:`Session` build on; a ``str`` ``tcp``
-        is resolved on the body."""
+        MotionData (held at ``ee_qpos``) or None. ``shortcut=False`` skips the
+        path smoothing (a coarse but valid path) -- useful in a FEASIBILITY search
+        where only existence matters; smooth the chosen result with ``True``. The
+        free-space primitive the :class:`Recipe` builds on; ``str`` ``tcp``
+        resolved on the body."""
         ctx, planner = self._context(collider, constraints)
         ctx.clear_cache()   # collider state (frozen aux arms, jaws) may have changed
         if start_qs is None:
@@ -161,7 +203,8 @@ class SingleArmManipulation:
             tcp = self.body.tcp(tcp)
         return gen_moveto(self.body, ctx, planner, goal, tcp=tcp,
                           start_qs=start_qs, chain=self.arm_chain,
-                          ee_qpos=ee_qpos, max_iters=max_iters)
+                          ee_qpos=ee_qpos, max_iters=max_iters,
+                          time_limit=time_limit, shortcut=shortcut)
 
     def approach(self, goal_pos, goal_rotmat, *, collider, tcp, constraints=(),
                  start_qs=None, **kw):
@@ -225,44 +268,74 @@ class SingleArmManipulation:
         so later carry legs account for it. The held object rides the gripper and
         is collision-checked by default; pass ``exclude=True`` to keep it OUT of
         collision (e.g. a connector whose clearance is enforced by a cable
-        constraint instead). ``release`` undoes it."""
+        constraint instead). ``release`` undoes it.
+
+        ``collider.refresh`` is a full MuJoCo recompile (tens to hundreds of ms), so
+        it is SKIPPED when ``obj`` carries no collision geometry (``collision_type=
+        None``): mounting such an object cannot change the collision model, so the
+        recompiled model would be identical. This keeps a multi-leg ``Recipe`` that
+        grasps clearance-by-constraint parts (cables, tethered connectors) from
+        paying a recompile per grasp."""
         ee = self.end_effector
         ee.attach(obj, qpos)
-        if exclude:
-            collider.exclude(obj)
-        collider.refresh()
+        if _changes_collision(obj):
+            if exclude:
+                collider.exclude(obj)
+            collider.refresh()
         collider.set_mecba_qpos(ee, np.asarray(qpos, dtype=np.float32))
 
     def release(self, obj, *, collider):
         """Drop ``obj`` from the end effector and ``refresh`` ``collider`` back to
-        the free state (the inverse of :meth:`grasp`)."""
+        the free state (the inverse of :meth:`grasp`). No recompile for a held
+        object that carries no collision geometry (it never entered the model)."""
         ee = self.end_effector
+        changed = _changes_collision(obj)
         ee.detach(obj)
-        collider.include(obj)
-        collider.refresh()
+        if changed:
+            collider.include(obj)
+            collider.refresh()
 
-    # ---- pick & place --------------------------------------------------------
-    def pick_place(self, obj, grasps, pick_pose, place_pose, *, collider, **kw):
-        """Full home -> pick -> lift -> transfer -> place -> retreat for ``obj``
-        from ``pick_pose`` to ``place_pose`` in ``collider`` (REQUIRED; it must
-        NOT contain ``obj`` -- the object is grasped, not an obstacle). Delegates
-        to ``gen_pick_place``. ``grasps`` are object-LOCAL and must be planned for
-        THIS ``end_effector`` (gen_pick_place guards the binding)."""
-        return gen_pick_place(self.body, self.end_effector, obj, grasps,
-                              pick_pose, place_pose, collider=collider,
-                              chain=self.arm_chain, **kw)
+    # ---- pick & place / pick & move-to ---------------------------------------
+    def pick_and_place(self, obj, grasps, pick_pose, place_pose, *, collider, **kw):
+        """Full home -> pick -> lift -> transfer -> place -> RELEASE -> retreat for
+        ``obj`` from ``pick_pose`` to ``place_pose`` in ``collider`` (REQUIRED; it
+        must NOT contain ``obj`` -- the object is grasped, not an obstacle).
+        Reasons ``grasps`` (object-LOCAL, planned for THIS ``end_effector``).
+        Returns a MotionData or None. (cf. :meth:`pick_and_moveto`, which HOLDS.)"""
+        return gen_pick_and_place(self.body, self.end_effector, obj, grasps,
+                                  pick_pose, place_pose, collider=collider,
+                                  chain=self.arm_chain, **kw)
 
-    def iter_pick_place(self, obj, grasps, pick_pose, place_pose, *, collider,
-                        **kw):
-        """Lazy form of :meth:`pick_place`: a generator yielding ``(gid,
+    def iter_pick_and_place(self, obj, grasps, pick_pose, place_pose, *, collider,
+                            **kw):
+        """Lazy form of :meth:`pick_and_place`: a generator yielding ``(gid,
         MotionData)`` for EACH common grasp that fully plans, planned on demand.
-        ``pick_place`` is just its first item; a viewer can pull the next grasp's
-        plan when the user asks. Same contract as ``pick_place`` (``collider``
-        REQUIRED, must NOT contain ``obj``; ``grasps`` planned for THIS
-        ``end_effector``)."""
-        return iter_pick_place(self.body, self.end_effector, obj, grasps,
-                               pick_pose, place_pose, collider=collider,
-                               chain=self.arm_chain, **kw)
+        ``pick_and_place`` is just its first item; a viewer can pull the next
+        grasp's plan when the user asks."""
+        return iter_pick_and_place(self.body, self.end_effector, obj, grasps,
+                                   pick_pose, place_pose, collider=collider,
+                                   chain=self.arm_chain, **kw)
+
+    def pick_and_moveto(self, obj, pick_pose, goal_poses, *, collider,
+                        opening=None, qpos=None, constraints=(),
+                        exclude_held=False, tcp=None, start_qs=None):
+        """Pick ``obj`` at the working-frame (grasp-center) pose ``pick_pose`` --
+        a ``(pos, rotmat)`` or 4x4 -- close to ``opening`` (jaw width) or ``qpos``,
+        then carry it through ``goal_poses`` (a LIST of working-frame poses),
+        HOLDING throughout -- NO release (cf. :meth:`pick_and_place`). Returns a
+        MotionData ending held at the last goal, or None. A thin :class:`Recipe`
+        recipe (``moveto`` -> ``grasp`` -> ``moveto``...); ``exclude_held`` keeps
+        the held object out of collision (clearance enforced by a ``constraint``).
+        For a multi-arm cell, ``activate`` the arm first."""
+        s = self.recipe(collider, constraints=constraints, tcp=tcp,
+                      start_qs=start_qs)
+        if s.moveto(pick_pose) is None:
+            return None
+        s.grasp(obj, opening=opening, qpos=qpos, exclude=exclude_held)
+        for p in goal_poses:
+            if s.moveto(p) is None:
+                return None
+        return s.result
 
     # ---- regrasp (FUTURE) ----------------------------------------------------
     def regrasp(self, obj, grasps, placements, start_pose, goal_pose, **kw):
@@ -271,10 +344,10 @@ class SingleArmManipulation:
 
         Planned shape: a combinatorial regrasp GRAPH (nodes = (placement, grasp,
         this arm); edges = transfer [carry, same grasp, two placements -> one
-        ``pick_place`` leg] / transit [regrasp in place, two grasps -> ``depart``
+        ``pick_and_place`` leg] / transit [regrasp in place, two grasps -> ``depart``
         + ``approach``]); search -> realize the path into a ``MotionData`` (the
         ``+``-composition of edge motions); prune+re-search on motion failure.
-        The 0-regrasp path is exactly ``pick_place``. See one/manipulation/
+        The 0-regrasp path is exactly ``pick_and_place``. See one/manipulation/
         regrasp/ (to be added)."""
         raise NotImplementedError("regrasp graph -- see module docstring roadmap")
 

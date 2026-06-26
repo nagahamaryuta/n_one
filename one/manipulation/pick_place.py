@@ -9,7 +9,7 @@ pose, composed from the existing building blocks:
                                          the EE joint config, AND the carried
                                          object's world pose at every waypoint).
 
-Usually invoked through ``robot.pick_place(...)`` (the arm IS the manipulator;
+Usually invoked through ``robot.pick_and_place(...)`` (the arm IS the manipulator;
 the gripper is its ``end_effector``); this free function is the testable core.
 
 ONE collider is reused across both phases (built once, ``refresh``ed at the
@@ -42,19 +42,19 @@ from one.grasp.reasoner import iter_common_gids
 from one.motion.core.motion_data import MotionData
 
 
-def gen_pick_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
+def gen_pick_and_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
                    collider, tcp=None, chain='main', start_qs=None,
                    lift_height=0.12, granularity=0.01,
                    approach_iters=4000, transfer_iters=8000, goal_bias=0.3,
                    constraints=()):
     """The FIRST feasible pick-and-place plan, or None -- the common case.
 
-    A thin adapter over :func:`iter_pick_place`: returns the MotionData of the
+    A thin adapter over :func:`iter_pick_and_place`: returns the MotionData of the
     first common grasp that fully plans (or None if none does). This is what
-    ``arm.pick_place`` calls; see ``iter_pick_place`` for the full parameter
+    ``arm.pick_place`` calls; see ``iter_pick_and_place`` for the full parameter
     semantics and the MotionData layout.
     """
-    return next(iter_pick_place(
+    return next(iter_pick_and_place(
         robot, gripper, obj, grasps, pick_pose, place_pose, collider=collider,
         tcp=tcp, chain=chain, start_qs=start_qs, lift_height=lift_height,
         granularity=granularity, approach_iters=approach_iters,
@@ -62,7 +62,7 @@ def gen_pick_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
         constraints=constraints), (None, None))[1]
 
 
-def iter_pick_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
+def iter_pick_and_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
                     collider, tcp=None, chain='main', start_qs=None,
                     lift_height=0.12, granularity=0.01,
                     approach_iters=4000, transfer_iters=8000, goal_bias=0.3,
@@ -92,7 +92,7 @@ def iter_pick_place(robot, gripper, obj, grasps, pick_pose, place_pose, *,
 
     Yields ``(gid, MotionData)`` for EACH common grasp that fully plans, in the
     visiting order -- planned LAZILY (each grasp is reasoned + RRT-planned
-    only when the consumer pulls the next item), so ``gen_pick_place`` can stop
+    only when the consumer pulls the next item), so ``gen_pick_and_place`` can stop
     after the first and a viewer can plan the next grasp on demand. Each
     MotionData has parallel ``robot_qpos_list`` (arm configs), ``ee_qpos_list``
     (the EE joint config per waypoint; open->closed marks the grasp, closed->open

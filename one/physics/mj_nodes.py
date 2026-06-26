@@ -38,9 +38,14 @@ class AssetNode:
 
 
 class MeshAsset(AssetNode):
-    def __init__(self, name, path):
+    def __init__(self, name, path=None, vertices=None):
         super().__init__(name)
+        # Either a mesh FILE path, or an inline VERTEX list (flat x y z ...). With
+        # inline vertices MuJoCo builds the mesh's convex hull from the points --
+        # used for collision proxies whose source STL MuJoCo cannot load (e.g. a
+        # huge ASCII mesh), where we pass a precomputed convex hull's vertices.
         self.path = path
+        self.vertices = vertices
 
 
 # class TextureAsset(AssetNode):

@@ -203,6 +203,19 @@ class MJOneConverter:
         elif isinstance(c, sco.PlaneCollisionShape):
             g.gtype = "plane"
             g.size = (1.0, 1.0, 0.1)
+        elif isinstance(c, sco.CvxHullCollisionShape):
+            # A convex-hull proxy: emit the hull's vertices INLINE (MuJoCo rebuilds
+            # the hull from them) instead of the source STL file, which may be an
+            # ASCII / oversized mesh MuJoCo cannot load. Keyed per shape (each hull
+            # is distinct); the verts are in the same local frame as the file mesh
+            # would be, so the geom pos/quat place it identically.
+            g.gtype = "mesh"
+            key = id(c)
+            if key not in self._mesh_assets:
+                name = f"mesh_{len(self._mesh_assets)}"
+                verts = np.asarray(c.geom.vs, dtype=float).reshape(-1)
+                self._mesh_assets[key] = opmno.MeshAsset(name=name, vertices=verts)
+            g.mesh_ref = self._mesh_assets[key]
         elif isinstance(c, sco.MeshCollisionShape):
             g.gtype = "mesh"
             if c.file_path not in self._mesh_assets:

@@ -60,8 +60,8 @@ _GPU batch triangle-mesh collision detection (pyglet/OpenGL compute)._
 
 ## `one.collider.mj_collider`
 
-- **class `MJCollider`**
-  - methods: `append`, `compile`, `is_collided`, `get_slice`, `set_mecba_qpos`, `save`, `actors`
+- **class `MJCollider`** — The robot's collision world: the planned mechanism(s) (``actors``), the
+  - methods: `append`, `compile`, `refresh`, `exclude`, `include`, `is_collided`, `get_slice`, `set_mecba_qpos`, `save`, `actors`
 
 ## `one.collider.raycast`
 
@@ -180,8 +180,9 @@ _Polypodal: rigid N-point contact pattern matching against a mesh_
 ## `one.grasp.reasoner`
 _Grasp feasibility reasoning -- the "common grasp" kernel._
 
-- `find_feasible_gids(robot, ctx, grasps, obj_pose, *, tcp=None, gripper=None, chain='main', which='pre', max_solutions=1, ik_accept=None)` — Feasible grasps at a single object pose.
-- `reason_common_gids(robot, ctx, grasps, obj_pose_list, **kwargs)` — Grasps feasible at EVERY object pose in ``obj_pose_list``.
+- `iter_common_gids(robot, ctx, grasps, obj_pose_list, *, tcp=None, gripper=None, chain='main', which='pre', max_solutions=1, ik_accept=None)` — Lazily yield grasps feasible at EVERY pose in ``obj_pose_list``.
+- `find_feasible_gids(robot, ctx, grasps, obj_pose, **kwargs)` — Feasible grasps at a SINGLE object pose -- the one-pose special case of
+- `reason_common_gids(robot, ctx, grasps, obj_pose_list, **kwargs)` — All grasps feasible at EVERY pose in ``obj_pose_list`` (the eager form of
 - **class `GraspReasoner`** — Thin stateful facade over :func:`find_feasible_gids` /
   - methods: `find_feasible_gids`, `reason_common_gids`
 
@@ -192,12 +193,37 @@ _Save / load / world-transform a list of :class:`~one.grasp.grasp.Grasp`._
 - `load_grasps(path)` — Load grasps previously saved by :func:`save_grasps`.
 - `transform_grasps(grasps, tf)` — Map object-LOCAL grasps into the world by an object world transform.
 
+## `one.manipulation.arm`
+_The manipulation verbs of a single arm -- as a mixin, not a wrapper._
+
+- **class `SingleArmManipulation`** — Manipulation verbs for one arm, delegating to the free-function cores.
+  - methods: `body`, `end_effector`, `build_collider`, `recipe`, `reason_grasps`, `reachable`, `moveto`, `approach`, `depart`, `insert`, `grasp`, `release`, `pick_and_place`, `iter_pick_and_place`, `pick_and_moveto`, `regrasp`
+- **class `Arm`** — A per-arm manipulator OWNED by a multi-arm robot: binds the parent
+  - methods: `body`
+
 ## `one.manipulation.pick_place`
 _Pick-and-place motion planning -- move an object from a pick pose to a place_
 
-- `gen_pick_place(robot, gripper, obj, grasps, pick_pose, place_pose, *, statics=(), tcp=None, chain='main', start_qs=None, lift_height=0.12, granularity=0.01, margin=0.0, approach_iters=4000, transfer_iters=8000, goal_bias=0.3)` — Plan home -> pick -> lift -> transfer -> place -> retreat moving ``obj``
-- **class `PickPlacePlanner`** — Thin stateful facade over :func:`gen_pick_place`.
-  - methods: `gen_pick_place`
+- `gen_pick_and_place(robot, gripper, obj, grasps, pick_pose, place_pose, *, collider, tcp=None, chain='main', start_qs=None, lift_height=0.12, granularity=0.01, approach_iters=4000, transfer_iters=8000, goal_bias=0.3, constraints=())` — The FIRST feasible pick-and-place plan, or None -- the common case.
+- `iter_pick_and_place(robot, gripper, obj, grasps, pick_pose, place_pose, *, collider, tcp=None, chain='main', start_qs=None, lift_height=0.12, granularity=0.01, approach_iters=4000, transfer_iters=8000, goal_bias=0.3, constraints=())` — Lazily plan home -> pick -> lift -> transfer -> place -> retreat moving
+
+## `one.manipulation.recipe`
+_A manipulation Recipe: compose the primitive arm verbs into one motion._
+
+- **class `Recipe`**
+  - methods: `moveto`, `linear`, `grasp`, `release`, `result`, `last_qs`, `segments`
+
+## `one.manipulation.workcell`
+_A multi-arm cell: several arms sharing ONE collision world._
+
+- **class `Workcell`** — Several arms (each a ``SingleArmManipulation``) sharing one collider.
+  - methods: `build_collider`, `activate`, `recipe`
+
+## `one.motion.core.constraint`
+_Planning constraints: state-validity predicates layered on top of collision._
+
+- **class `Constraint`** — A state-validity predicate beyond collision.
+  - methods: `is_valid`
 
 ## `one.motion.core.motion_data`
 _A plain, composable motion container._
@@ -230,11 +256,10 @@ _A plain, composable motion container._
 ## `one.motion.primitives.approach_depart`
 _Approach / depart motion primitives._
 
+- `gen_moveto(robot, ctx, planner, goal, *, tcp=None, start_qs, chain='main', ee_qpos=None, max_iters=2000, time_limit=3.0, shortcut=True)` — Free RRT move from ``start_qs`` to ``goal`` (a config, or a pose IK'd via
 - `nearest_valid_ik(robot, ctx, pos, rotmat, *, chain='main', tcp='flange', ref_qs, max_solutions=8, accept=None)` — IK at ``(pos, rotmat)`` returning the solution nearest ``ref_qs`` (in the
-- `gen_approach(robot, ctx, planner, goal_pos, goal_rotmat, *, tcp, start_qs, chain='main', pre_pos=None, pre_rotmat=None, approach_direction=None, approach_distance=0.05, granularity=0.01, ee_value=None, use_rrt=True, check_descent=True, max_iters=2000, ik_max_solutions=8, ik_accept=None)` — ``start_qs`` -> pre-grasp (probabilistic) -> grasp (cartesian line).
-- `gen_depart(robot, ctx, planner, start_pos, start_rotmat, *, tcp, start_qs, chain='main', depart_direction=None, depart_distance=0.05, granularity=0.01, ee_value=None, end_qs=None, use_rrt=False, check_retreat=True, max_iters=2000)` — ``start_qs`` (at the grasp) -> retreat (cartesian line) -> optional park.
-- **class `ADPlanner`** — Thin stateful facade over :func:`gen_approach` / :func:`gen_depart`.
-  - methods: `gen_approach`, `gen_depart`
+- `gen_approach(robot, ctx, planner, goal_pos, goal_rotmat, *, tcp, start_qs, chain='main', pre_pos=None, pre_rotmat=None, approach_direction=None, approach_distance=0.05, granularity=0.01, ee_qpos=None, use_rrt=True, check_descent=True, max_iters=2000, ik_max_solutions=8, ik_accept=None)` — ``start_qs`` -> pre-grasp (probabilistic) -> grasp (cartesian line).
+- `gen_depart(robot, ctx, planner, start_pos, start_rotmat, *, tcp, start_qs, chain='main', depart_direction=None, depart_distance=0.05, granularity=0.01, ee_qpos=None, end_qs=None, use_rrt=False, check_retreat=True, max_iters=2000)` — ``start_qs`` (at the grasp) -> retreat (cartesian line) -> optional park.
 
 ## `one.motion.probabilistic.post_processor`
 
@@ -331,7 +356,7 @@ _Approach / depart motion primitives._
 
 - **class `Mounting`**
 - **class `MechBase`**
-  - methods: `structure`, `attach_to`, `detach_from`, `set_pos_rotmat`, `fk`, `mount`, `unmount`, `get_solver`, `add_chain`, `chain`, `chains`, `add_tcp`, `tcp`, `tcps`, `toggle_tcp`, `ik`, `ik_partial`, `clone`, `ndof`, `runtime_root_lnk`, `is_floating`, `home_qs`, `tf`, `rotmat`, `quat`, `pos`, `toggle_render_collision`, `rgba`, `rgb`, `alpha`
+  - methods: `structure`, `attach_to`, `detach_from`, `set_pos_rotmat`, `fk`, `mount`, `unmount`, `get_solver`, `add_chain`, `chain`, `chains`, `chain_joint_limits`, `add_tcp`, `tcp`, `tcps`, `toggle_tcp`, `ik`, `ik_partial`, `clone`, `ndof`, `runtime_root_lnk`, `is_floating`, `home_qs`, `tf`, `rotmat`, `quat`, `pos`, `toggle_render_collision`, `rgba`, `rgb`, `alpha`
 
 ## `one.robots.base.mech_structure`
 
@@ -468,7 +493,7 @@ _Approach / depart motion primitives._
 - **class `PointMixin`**
   - methods: `activate`, `deactivate`, `touch_at`, `attach`, `detach`, `is_activated`
 - **class `DexHandMixin`** — Behavior for a multi-finger dexterous hand (a MechBase EE).
-  - methods: `grasp_spec`, `open_hand`, `grip`, `pinch`, `tripod`, `power`, `grasp_at`, `pinch_at`, `power_at`, `as_jaw`
+  - methods: `grasp_spec`, `open_hand`, `open`, `grip`, `pinch`, `tripod`, `power`, `grasp_at`, `pinch_at`, `power_at`, `as_jaw`
 - **class `JawView`** — A parallel-jaw view of a dexterous hand, bound to one opposition
   - methods: `runtime_lnks`, `qpos`, `attach_to`, `rgb`, `alpha`, `clone`, `set_opening`, `open_dir_at`, `grasp_center_at`, `grasp_center_tcp`, `grip_at`
 
@@ -821,6 +846,7 @@ _Transform & rotation math: rotmat_from_* (axangle, quat, euler, rotvec,_
 - `ensure_right_handed(rotmat)` — ensure the given rotmat is right-handed
 - `ensure_rotmat(rotmat=None)`
 - `ensure_pos(pos=None)`
+- `ensure_vec(vec, length=None)`
 - `ensure_tf(tf=None)`
 - `ensure_rgb(rgb=None)`
 

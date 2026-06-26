@@ -80,7 +80,7 @@ class L1O6(L1):
         self.mount(self.right_hand, self.lnk('right_arm_link_6'), mount_tf, update=True)
         # per-arm manipulators OWNED by this dual-arm body: each is the arm
         # (chain); its end_effector is DERIVED from the hand mounted at the chain
-        # tip (named once, above). ``robot.left_arm.pick_place(...)``.
+        # tip (named once, above). ``robot.left_arm.pick_and_place(...)``.
         self.left_arm = Arm(self, 'left_arm_waist')
         self.right_arm = Arm(self, 'right_arm_waist')
 

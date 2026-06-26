@@ -28,7 +28,7 @@ import one.motion.probabilistic.rrt as ompr
 from one.motion.core.motion_data import MotionData
 
 
-def _as_goal_conf(robot, ctx, goal, *, tcp, chain, ref_qs, ik_max_solutions=8):
+def _as_goal_conf(robot, ctx, goal, *, tcp, chain, ref_qs, ik_max_solutions=16):
     """Resolve ``goal`` to a full joint config: a config array is returned as-is;
     a pose (``(pos, rotmat)`` or a 4x4 tf) is IK'd via ``tcp`` to the collision-
     free solution nearest ``ref_qs`` (None if unreachable / all colliding)."""
@@ -51,12 +51,13 @@ def _as_goal_conf(robot, ctx, goal, *, tcp, chain, ref_qs, ik_max_solutions=8):
 
 
 def gen_moveto(robot, ctx, planner, goal, *, tcp=None, start_qs, chain='main',
-               ee_qpos=None, max_iters=4000, shortcut=True):
+               ee_qpos=None, max_iters=2000, time_limit=3.0, shortcut=True):
     """Free RRT move from ``start_qs`` to ``goal`` (a config, or a pose IK'd via
-    ``tcp``) under ``ctx`` (collision + constraints). With ``shortcut`` the RRT
-    path is shortcut + re-densified (kept ``ctx``-valid). Returns a MotionData
-    (held at ``ee_qpos``) or None if unreachable / no path. The free-space
-    primitive every transfer / transit leg is built from."""
+    ``tcp``) under ``ctx`` (collision + constraints). ``time_limit`` caps the RRT
+    wall-clock per call (so an expensive gate like a per-edge cable ray-cast can't
+    stall the search). With ``shortcut`` the RRT path is shortcut + re-densified
+    (kept ``ctx``-valid). Returns a MotionData (held at ``ee_qpos``) or None if
+    unreachable / no path. The free-space primitive every transfer leg builds on."""
     start_qs = np.asarray(start_qs, dtype=np.float32)
     goal_qs = _as_goal_conf(robot, ctx, goal, tcp=tcp, chain=chain,
                             ref_qs=start_qs)
@@ -65,12 +66,15 @@ def gen_moveto(robot, ctx, planner, goal, *, tcp=None, start_qs, chain='main',
     if (not ctx.is_state_valid(np.asarray(start_qs, dtype=np.float64))
             or not ctx.is_state_valid(np.asarray(goal_qs, dtype=np.float64))):
         return None
-    path = planner.solve(start_qs, goal_qs, max_iters=max_iters)
+    path = planner.solve(start_qs, goal_qs, max_iters=max_iters,
+                         time_limit=time_limit)
     if not path:
         return None
     path = list(path)
     if shortcut:
-        path = ompr.shortcut_path(path, ctx)
+        # bounded smoothing -- each shortcut iter re-validates segments (with any
+        # constraint, e.g. a per-edge cable ray-cast), so keep the count modest.
+        path = ompr.shortcut_path(path, ctx, n_iter=50)
         path = ompr.densify_path(path, ctx)
         path[0] = start_qs
         path[-1] = np.asarray(goal_qs, dtype=np.float32)

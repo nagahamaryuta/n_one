@@ -126,5 +126,6 @@ _Transform & rotation math: rotmat_from_* (axangle, quat, euler, rotvec,_
 - `ensure_right_handed(rotmat)` — ensure the given rotmat is right-handed
 - `ensure_rotmat(rotmat=None)`
 - `ensure_pos(pos=None)`
+- `ensure_vec(vec, length=None)`
 - `ensure_tf(tf=None)`
 - `ensure_rgb(rgb=None)`

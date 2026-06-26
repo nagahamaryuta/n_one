@@ -60,8 +60,8 @@ _GPU batch triangle-mesh collision detection (pyglet/OpenGL compute)._
 
 ## `one.collider.mj_collider`
 
-- **class `MJCollider`**
-  - methods: `append`, `compile`, `is_collided`, `get_slice`, `set_mecba_qpos`, `save`, `actors`
+- **class `MJCollider`** — The robot's collision world: the planned mechanism(s) (``actors``), the
+  - methods: `append`, `compile`, `refresh`, `exclude`, `include`, `is_collided`, `get_slice`, `set_mecba_qpos`, `save`, `actors`
 
 ## `one.collider.raycast`
 

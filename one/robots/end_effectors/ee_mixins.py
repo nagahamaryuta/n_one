@@ -235,7 +235,7 @@ class DexHandMixin(EndEffectorMixin):
     def open(self):
         """Uniform 'fully open' across end effectors (mirrors a parallel
         gripper's ``open``); for a hand this extends every finger. Lets
-        EE-agnostic callers (e.g. ``gen_pick_place``) get the open config the
+        EE-agnostic callers (e.g. ``gen_pick_and_place``) get the open config the
         same way for a gripper or a hand."""
         self.open_hand()
 

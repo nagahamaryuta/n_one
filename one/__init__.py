@@ -39,7 +39,7 @@ from one.motion.core.motion_data import MotionData
 
 import one.manipulation.pick_place as ompp_pickplace
 import one.manipulation.arm as oma
-from one.manipulation.pick_place import gen_pick_place
+from one.manipulation.pick_place import gen_pick_and_place
 from one.manipulation.arm import Arm, SingleArmManipulation
 
 import one.robots.manipulators.kawasaki.rs007l.rs007l as khi_rs007l
@@ -51,5 +51,5 @@ __all__ = ['np', 'key', 'oum', 'ouh', 'ouc',
            'oss', 'osso', 'ossop', 'ogg', 'osrm', 'ogl', 'osgop', 'ovw',
            'ocm', 'occs', 'ogab', 'ogpp', 'ogmc', 'ogpl', 'ogr', 'ogs', 'Grasp',
            'omppc', 'ompr', 'ompp', 'omic', 'omij', 'omttp', 'ompad', 'MotionData',
-           'gen_pick_place', 'oma', 'Arm', 'SingleArmManipulation',
+           'gen_pick_and_place', 'oma', 'Arm', 'SingleArmManipulation',
            'khi_rs007l', 'xarm_lite6', 'or_2fg7', 'xyt']

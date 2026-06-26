@@ -87,9 +87,27 @@ class MJCollider:
             _walk(a)
         return out
 
+    def _all_mechs(self):
+        """Every robot mech in the scene -- ALL arms (not just the actor) plus
+        their mounted grippers/hands. Used to exempt a held/excluded part vs the
+        WHOLE cell, not only the moving arm."""
+        out, seen = [], set()
+
+        def _walk(mb):
+            if id(mb) in seen:
+                return
+            seen.add(id(mb))
+            out.append(mb)
+            for mt in mb._mountings.values():
+                if hasattr(mt.child, 'runtime_lnks'):
+                    _walk(mt.child)
+        for mb in self.scene.mecbas:
+            _walk(mb)
+        return out
+
     def _auto_excludes(self):
         """(a) grasped object vs its carrier-mech links; (b) excluded object vs
-        all actor links."""
+        EVERY robot link in the cell (both arms)."""
         pairs = []
         mechs = self._mounted_mechs()
         # (a) held objects: a plain SceneObject mounted on a mech -> exempt vs
@@ -100,10 +118,12 @@ class MJCollider:
                 if not hasattr(child, 'runtime_lnks'):
                     for lnk in mb.runtime_lnks:
                         pairs.append((child, lnk))
-        # (b) excluded objects (e.g. the grasp target during its approach) ->
-        # exempt vs every actor link so the reaching hand may overlap them.
+        # (b) excluded objects (a grasp target during approach, or a part carried
+        # by one arm) -> NOT an obstacle for ANY arm: exempt vs every robot link
+        # in the cell, not just the actor's. A held part the other arm should
+        # also ignore (the original cable demo tracked it pose-only, off-collider).
         if self._excluded:
-            all_lnks = [lnk for mb in mechs for lnk in mb.runtime_lnks]
+            all_lnks = [lnk for mb in self._all_mechs() for lnk in mb.runtime_lnks]
             for obj in self._excluded:
                 for lnk in all_lnks:
                     pairs.append((obj, lnk))
@@ -159,6 +179,8 @@ class MJCollider:
         return pairs
 
     def is_collided(self, qs):
+        if getattr(self, "_collision_off", False):
+            return False                  # caller temporarily ignoring collision
         if not self.actors:
             raise RuntimeError("MjCollider.actor is not set!")
         if self._mjenv is None:

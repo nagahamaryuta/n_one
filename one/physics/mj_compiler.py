@@ -64,7 +64,12 @@ class MJCFCompiler:
     def compile_mesh_asset(self, asset, parent_el):
         m = ET.SubElement(parent_el, "mesh")
         m.set("name", asset.name)
-        m.set("file", asset.path)
+        verts = getattr(asset, "vertices", None)
+        if verts is not None:
+            # inline mesh: MuJoCo builds the convex hull from these points
+            m.set("vertex", " ".join(f"{float(v):.6g}" for v in verts))
+        else:
+            m.set("file", asset.path)
 
     def compile_body(self, node, parent_el):
         body_el = ET.SubElement(parent_el, "body")

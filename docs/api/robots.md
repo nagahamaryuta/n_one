@@ -11,7 +11,7 @@ Prefer these in-house utilities over trimesh / scipy / open3d / fcl. Auto-genera
 
 - **class `Mounting`**
 - **class `MechBase`**
-  - methods: `structure`, `attach_to`, `detach_from`, `set_pos_rotmat`, `fk`, `mount`, `unmount`, `get_solver`, `add_chain`, `chain`, `chains`, `add_tcp`, `tcp`, `tcps`, `toggle_tcp`, `ik`, `ik_partial`, `clone`, `ndof`, `runtime_root_lnk`, `is_floating`, `home_qs`, `tf`, `rotmat`, `quat`, `pos`, `toggle_render_collision`, `rgba`, `rgb`, `alpha`
+  - methods: `structure`, `attach_to`, `detach_from`, `set_pos_rotmat`, `fk`, `mount`, `unmount`, `get_solver`, `add_chain`, `chain`, `chains`, `chain_joint_limits`, `add_tcp`, `tcp`, `tcps`, `toggle_tcp`, `ik`, `ik_partial`, `clone`, `ndof`, `runtime_root_lnk`, `is_floating`, `home_qs`, `tf`, `rotmat`, `quat`, `pos`, `toggle_render_collision`, `rgba`, `rgb`, `alpha`
 
 ## `one.robots.base.mech_structure`
 
@@ -148,7 +148,7 @@ Prefer these in-house utilities over trimesh / scipy / open3d / fcl. Auto-genera
 - **class `PointMixin`**
   - methods: `activate`, `deactivate`, `touch_at`, `attach`, `detach`, `is_activated`
 - **class `DexHandMixin`** — Behavior for a multi-finger dexterous hand (a MechBase EE).
-  - methods: `grasp_spec`, `open_hand`, `grip`, `pinch`, `tripod`, `power`, `grasp_at`, `pinch_at`, `power_at`, `as_jaw`
+  - methods: `grasp_spec`, `open_hand`, `open`, `grip`, `pinch`, `tripod`, `power`, `grasp_at`, `pinch_at`, `power_at`, `as_jaw`
 - **class `JawView`** — A parallel-jaw view of a dexterous hand, bound to one opposition
   - methods: `runtime_lnks`, `qpos`, `attach_to`, `rgb`, `alpha`, `clone`, `set_opening`, `open_dir_at`, `grasp_center_at`, `grasp_center_tcp`, `grip_at`
 

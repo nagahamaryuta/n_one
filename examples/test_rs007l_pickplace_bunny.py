@@ -1,14 +1,14 @@
 """RS007L pick-and-place of a bunny between two FIXED poses, via the library
-``gen_pick_place``. The example only sets up the scene (robot, gripper, the
+``gen_pick_and_place``. The example only sets up the scene (robot, gripper, the
 manipulated bunny, the ground and a partition wall) and the pick/place poses;
-``one.manipulation.pick_place.gen_pick_place`` does the rest:
+``one.manipulation.pick_place.gen_pick_and_place`` does the rest:
 
     reason a grasp feasible at BOTH poses -> approach+grasp -> lift -> transfer
     -> place -> retreat, returning a MotionData (configs + gripper openings +
     the carried bunny's world pose at every waypoint).
 
 A partition wall stands between pick and place: the transfer routes the HELD
-bunny around it, because gen_pick_place collision-checks the carried object (it
+bunny around it, because gen_pick_and_place collision-checks the carried object (it
 rides the gripper link in the carry collider), not just the gripper.
 
 Run:        py -3.12 examples/test_rs007l_pickplace_bunny.py
@@ -76,8 +76,8 @@ for attempt in range(10):
         continue
     # the arm IS the manipulator; the gripper is its end_effector. tcp derived
     # per grasp; the wall is routed around with the bunny carried.
-    motion = robot.pick_place(bunny, grasps, tf_pick, tf_place,
-                              collider=collider, lift_height=LIFT)
+    motion = robot.pick_and_place(bunny, grasps, tf_pick, tf_place,
+                                  collider=collider, lift_height=LIFT)
     if motion is not None:
         print(f"attempt {attempt}: {len(grasps)} grasps -> "
               f"{len(motion)} waypoints")
@@ -86,7 +86,7 @@ if motion is None:
     raise SystemExit("no feasible pick-and-place plan")
 
 if HEADLESS:
-    print("headless OK: pick-and-place planned via gen_pick_place")
+    print("headless OK: pick-and-place planned via gen_pick_and_place")
     raise SystemExit
 
 

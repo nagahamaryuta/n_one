@@ -67,7 +67,7 @@ def iter_common_gids(robot, ctx, grasps, obj_pose_list, *, tcp=None,
     ``(gid, [qs_at_pose0, qs_at_pose1, ...])`` (``gid`` is the index into
     ``grasps``) as soon as the grasp passes ALL poses. Two consequences fall out:
 
-      * a consumer that only needs ONE working grasp (``gen_pick_place``) can
+      * a consumer that only needs ONE working grasp (``gen_pick_and_place``) can
         ``break`` after the first that fully plans -- the remaining grasps are
         never IK'd (the big speedup vs reasoning all of them up front);
       * place-pose IK runs only for grasps already feasible at the pick pose

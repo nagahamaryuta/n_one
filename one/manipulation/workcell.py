@@ -64,12 +64,12 @@ class Workcell:
                     other.body, np.asarray(qs, dtype=np.float32))
         return self.collider
 
-    def plan(self, arm, *, aux=None, constraints=(), tcp=None, start_qs=None):
+    def recipe(self, arm, *, aux=None, constraints=(), tcp=None, start_qs=None):
         """``activate(arm, aux)`` then open a manipulation
-        :class:`~one.manipulation.session.Session` over the shared collider --
+        :class:`~one.manipulation.recipe.Recipe` over the shared collider --
         the one-call entry point for a multi-arm leg: freeze the other arms,
         then list ``moveto`` / ``grasp`` / ``linear`` / ``release`` steps and read
         ``.result``."""
         self.activate(arm, aux)
-        return arm.plan(self.collider, constraints=constraints, tcp=tcp,
-                        start_qs=start_qs)
+        return arm.recipe(self.collider, constraints=constraints, tcp=tcp,
+                          start_qs=start_qs)

@@ -2,7 +2,7 @@
 high-level ``one.manipulation.pick_place``.
 
 Grasps come from ANTIPODAL planning: the O6 left hand is presented as a parallel
-jaw (``hand.as_jaw('pinch')``), and ``gen_pick_place`` reasons a grasp feasible
+jaw (``hand.as_jaw('pinch')``), and ``gen_pick_and_place`` reasons a grasp feasible
 at BOTH the pick and the place pose, then composes home -> pick -> lift ->
 transfer -> place -> retreat -- moving ONLY the 'left_arm_waist' chain (the torso
 and the other arm stay frozen). The dexterous hand is just another end effector
@@ -57,13 +57,13 @@ def main():
     robot, table, bunny, ground = build_scene()
 
     # ONE end-effector binds both steps: grasps are planned for ``hand`` (as a
-    # parallel jaw) and gen_pick_place is given the SAME ``hand`` -- the grasps'
+    # parallel jaw) and gen_pick_and_place is given the SAME ``hand`` -- the grasps'
     # frozen tcp / qpos only make sense on the EE they were planned for, so
-    # sourcing both from one variable avoids a silent mismatch (gen_pick_place
+    # sourcing both from one variable avoids a silent mismatch (gen_pick_and_place
     # also guards against it via each grasp's provenance).
     hand = robot.left_hand
 
-    # antipodal pinch grasps in the bunny's LOCAL frame -- gen_pick_place maps
+    # antipodal pinch grasps in the bunny's LOCAL frame -- gen_pick_and_place maps
     # them onto the pick / place poses itself.
     grasps = antipodal(hand.as_jaw('pinch'), bunny, density=0.0008,
                        normal_tol_deg=25, roll_step_deg=30, max_grasps=40,
@@ -74,19 +74,19 @@ def main():
     pick_pose = bunny.wd_tf                                   # bunny at GRASP
     place_pose = oum.tf_from_pos_rotmat(PLACE, bunny.rotmat)  # same rest pose, moved
 
-    # The dexterous hand is just the end effector. gen_pick_place plans ONLY the
+    # The dexterous hand is just the end effector. gen_pick_and_place plans ONLY the
     # 'left_arm_waist' chain (torso/other arm frozen), reasons a grasp feasible at
     # both poses, and returns a MotionData carrying the hand's tcp + closure qpos.
     # ``robot.left_arm`` IS the left arm/manipulator; its end_effector is the
-    # left hand (== ``hand``), so the grasps match (gen_pick_place guards it). It
+    # left hand (== ``hand``), so the grasps match (gen_pick_and_place guards it). It
     # plans only its own chain ('left_arm_waist'). Build its collision world once
     # (robot + hands + table + ground; NOT the bunny -- it is grasped).
     collider = robot.left_arm.build_collider(fixtures=[table, ground])
     # LAZY pick-place: ONE plan per common grasp, planned only when reached.
     # ``computed`` caches (gid, MotionData); ``ensure(idx)`` plans up to ``idx``
     # on demand. The viewer's N key just advances the index.
-    plans = robot.left_arm.iter_pick_place(bunny, grasps, pick_pose, place_pose,
-                                           collider=collider, lift_height=LIFT)
+    plans = robot.left_arm.iter_pick_and_place(
+        bunny, grasps, pick_pose, place_pose, collider=collider, lift_height=LIFT)
     computed = []
 
     def ensure(idx):
@@ -111,7 +111,7 @@ def main():
         assert moved <= chain, f'non-chain joints moved: {sorted(moved - chain)}'
         assert all(e is not None for e in motion0.ee_qpos_list), 'ee_qpos gap'
         print(f'headless OK: only chain {CHAIN} moves ({sorted(moved)}); '
-              f'dexterous-hand pick-place via gen_pick_place')
+              f'dexterous-hand pick-place via gen_pick_and_place')
         return
 
     import pyglet.window.key as key
