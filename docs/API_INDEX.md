@@ -88,7 +88,18 @@ _GPU batch triangle-mesh collision detection (pyglet/OpenGL compute)._
 - **class `SIMDCollider`**
   - methods: `is_collided`
 
-## `one.devices.cubemars`
+## `one.drivers.cobotta`
+_b-CAP (ORiN2) client for DENSO controllers + a COBOTTA joint-state reader._
+
+- **class `BCapError`** — A controller-side b-CAP failure (HRESULT with the error bit set).
+- **class `BCapClient`** — Minimal synchronous b-CAP client over TCP.
+  - methods: `close`, `service_start`, `service_stop`, `controller_connect`, `controller_disconnect`, `controller_getrobot`, `controller_getvariable`, `controller_execute`, `robot_getvariable`, `robot_execute`, `robot_move`, `robot_release`, `variable_getvalue`, `variable_release`
+- **class `Cobotta`** — Read-only b-CAP session with one COBOTTA controller.
+  - methods: `is_connected`, `connect`, `joint_angles`, `close`
+- **class `CobottaMotion`** — A COBOTTA session that can also MOVE the arm.
+  - methods: `is_armed`, `enable`, `disable`, `set_speed`, `move_qs`, `move_path`, `close`
+
+## `one.drivers.cubemars`
 
 - **class `CubeMarsNativeCAN`** — CubeMars servo CAN packet builder (extended CAN frame).
   - methods: `set_duty`, `set_current`, `set_cb`, `set_rpm`, `set_pos`, `set_origin`, `set_pos_spd`, `parse_feedback_8b`
@@ -287,6 +298,11 @@ _Approach / depart motion primitives._
 ## `one.motion.trajectory.time_param`
 
 - `retime_trapezoidal(q_seq, v_max, a_max, dt=0.01)` — Time-parameterize a joint waypoint path using per-segment trapezoidal scaling.
+
+## `one.motion.trajectory.totg`
+_Time-optimal retiming of a joint waypoint path (Kunz-Stilman style)._
+
+- `retime(q_seq, v_max, a_max, dt=0.01, corner_dt=None)` — Time-parameterize a joint waypoint path with forward/backward sweeps.
 
 ## `one.physics.inertial`
 

@@ -70,3 +70,8 @@ _Approach / depart motion primitives._
 ## `one.motion.trajectory.time_param`
 
 - `retime_trapezoidal(q_seq, v_max, a_max, dt=0.01)` — Time-parameterize a joint waypoint path using per-segment trapezoidal scaling.
+
+## `one.motion.trajectory.totg`
+_Time-optimal retiming of a joint waypoint path (Kunz-Stilman style)._
+
+- `retime(q_seq, v_max, a_max, dt=0.01, corner_dt=None)` — Time-parameterize a joint waypoint path with forward/backward sweeps.

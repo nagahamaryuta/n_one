@@ -3,7 +3,7 @@ import time
 
 import can
 
-from one.devices.cubemars import Motor, RLink
+from one.drivers.cubemars import Motor, RLink
 
 
 def _hex(bs):

@@ -33,7 +33,7 @@ import one.motion.probabilistic.rrt as ompr
 import one.motion.probabilistic.prm as ompp
 import one.motion.interpolation.cartesian as omic
 import one.motion.interpolation.joint as omij
-import one.motion.trajectory.time_param as omttp
+import one.motion.trajectory.totg as omttg
 import one.motion.primitives.approach_depart as ompad
 from one.motion.core.motion_data import MotionData
 
@@ -50,6 +50,7 @@ import one.robots.vehicle.xytheta as xyt
 __all__ = ['np', 'key', 'oum', 'ouh', 'ouc',
            'oss', 'osso', 'ossop', 'ogg', 'osrm', 'ogl', 'osgop', 'ovw',
            'ocm', 'occs', 'ogab', 'ogpp', 'ogmc', 'ogpl', 'ogr', 'ogs', 'Grasp',
-           'omppc', 'ompr', 'ompp', 'omic', 'omij', 'omttp', 'ompad', 'MotionData',
+           'omppc', 'ompr', 'ompp', 'omic', 'omij', 'omttp', 'omttg', 'ompad',
+           'MotionData',
            'gen_pick_and_place', 'oma', 'Arm', 'SingleArmManipulation',
            'khi_rs007l', 'xarm_lite6', 'or_2fg7', 'xyt']
