@@ -94,3 +94,10 @@ site/
 
 # Claude Code local config
 .claude/
+
+
+# 0001_nagahama configs, models, and docs
+!0001_nagahama/
+!0001_nagahama/**
+0001_nagahama/**/__pycache__/
+0001_nagahama/**/*.py[cod]
